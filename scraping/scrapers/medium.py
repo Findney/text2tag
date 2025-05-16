@@ -8,163 +8,110 @@ from config import MEDIUM_URL, USER_AGENTS, REFERERS
 import re
 import unicodedata
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
-
-
-MAX_LINKS = 10
-categories = [
-    "life",
-    "self-improvement",
-    # "work",
-    # "technology",
-    # "software-development",
-    # "media",
-    # "society",
-    # "culture",
-    # "world",
-]
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
 
-def get_article_links_medium(category):
-    """
-    Extract article links from Medium's tag archive page using Selenium.
-
-    Args:
-        category (str): The Medium tag/category to scrape (e.g., 'life', 'self-improvement').
-
-    Returns:
-        list: A sorted list of unique, valid article URLs.
-    """
-    MAX_LINKS = 10
-    url = f"{MEDIUM_URL}/tag/{category}/archive"
-
-    # Configure Selenium with headless Chrome
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")  # Run in headless mode
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument(f"user-agent={random.choice(USER_AGENTS)}")
-
-    # Initialize WebDriver
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=chrome_options)
-
+def get_article_links_medium():
     links = set()
-    scroll_attempts = 0
-    max_scroll_attempts = 30  # Reduced max attempts for efficiency with Selenium
+
+    # Konfigurasi opsi Chrome
+    options = Options()
+    options.add_argument("--headless")  # Jalankan di mode headless
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    options.add_argument(
+        "--disable-dev-shm-usage"
+    )  # Mengatasi masalah memori di container
+    options.add_argument(
+        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    )
 
     try:
-        # Navigate to the archive page
-        driver.get(url)
-        logging.info(f"Navigated to {url}")
+        # Inisialisasi driver dengan ChromeDriverManager
+        driver = webdriver.Chrome(
+            service=Service(ChromeDriverManager().install()), options=options
+        )
 
-        while len(links) < MAX_LINKS and scroll_attempts < max_scroll_attempts:
-            # Get the current page source and parse with BeautifulSoup
+        try:
+            # Buka halaman Medium
+            driver.get(f"{MEDIUM_URL}/komunitas-blogger-m")
+            SCROLL_PAUSE_TIME = 2
+            last_height = driver.execute_script("return document.body.scrollHeight")
+
+            # Lakukan scrolling untuk memuat konten
+            for _ in range(10):  # Scroll sebanyak 10 kali
+                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                time.sleep(SCROLL_PAUSE_TIME)
+                new_height = driver.execute_script("return document.body.scrollHeight")
+                if new_height == last_height:
+                    break
+                last_height = new_height
+
+            # Parsing halaman dengan BeautifulSoup
             soup = BeautifulSoup(driver.page_source, "html.parser")
-            article_blocks = soup.find_all(
-                "article", attrs={"data-testid": "post-preview"}
-            )
 
-            if not article_blocks:
-                logging.info(f"No articles found on page {url}")
-                break
+            # Cari div utama yang memuat artikel
+            target_div = soup.find("div", class_="u-marginBottom40 js-collectionStream")
+            if not target_div:
+                logging.warning(
+                    "Div dengan kelas 'u-marginBottom40 js-collectionStream' tidak ditemukan."
+                )
+                return []
 
-            valid_link_found = False
+            # Ambil semua tag <a> dengan atribut href
+            anchor_tags = target_div.find_all("a", href=True)
 
-            for block in article_blocks:
-                # Skip member-only articles
-                if block.find("button", attrs={"aria-label": "Member-only story"}):
+            for a in anchor_tags:
+                raw_link = a["href"]
+                clean_link = raw_link.split("?")[0].rstrip("/")
+
+                # Lewati link ke profil pengguna
+                if clean_link.startswith(f"{MEDIUM_URL}/@"):
+                    logging.info(f"Link profil dilewati: {clean_link}")
                     continue
 
-                anchor = block.find("div", attrs={"data-href": True})
-                h2 = block.find("h2")
+                # Hanya proses link yang relevan dengan komunitas
+                if clean_link.startswith(f"{MEDIUM_URL}/komunitas-blogger-m"):
+                    if clean_link not in links:
+                        slug = clean_link.split("/")[-1]
 
-                if anchor and h2:
-                    raw_link = anchor.get("data-href")
-                    # Normalize link to remove tracking parameters
-                    if "?" in raw_link:
-                        raw_link = raw_link.split("?")[0]
-                    if raw_link.startswith(MEDIUM_URL):
-                        raw_path = raw_link.replace(MEDIUM_URL, "")
-                    else:
-                        raw_path = raw_link
-
-                    if raw_link not in links:
-                        slug = raw_link.rstrip("/").split("/")[-1]
-
-                        # Skip if slug is a hash ID (hex digits and dashes)
+                        # Lewati slug acak berbentuk hash ID
                         if re.fullmatch(r"[\da-f\-]{10,}", slug, re.IGNORECASE):
-                            logging.warning(
-                                f"Skipped link due to hash slug: {raw_link}"
-                            )
                             continue
 
-                        # Skip if slug contains non-Latin characters
+                        # Lewati slug non-Latin
                         if not all(
                             "LATIN" in unicodedata.name(char, "")
                             for char in slug
                             if char.isalpha()
                         ):
-                            logging.warning(
-                                f"Skipped link due to non-Latin characters: {raw_link}"
-                            )
                             continue
 
-                        # Skip if slug lacks Latin words (minimum 3 letters)
+                        # Pastikan slug mengandung cukup huruf Latin
                         if not re.search(r"[a-zA-Z]{3,}", slug):
-                            logging.warning(
-                                f"Skipped link due to no Latin words: {raw_link}"
-                            )
                             continue
 
-                        full_link = f"{MEDIUM_URL}{raw_path}"
-                        links.add(full_link)
-                        logging.info(f"Added link: {full_link}")
-                        valid_link_found = True
+                        links.add(clean_link)
+                        logging.info(f"Link ditambahkan: {clean_link}")
 
-                        if len(links) >= MAX_LINKS:
-                            break
+            time.sleep(random.uniform(1.5, 3.0))  # Delay untuk menghindari ban
 
-            if not valid_link_found:
-                logging.warning(
-                    "No valid links found in this iteration. Stopping to prevent stagnation."
-                )
-                break
+        except Exception as e:
+            logging.error(f"Terjadi kesalahan saat memproses halaman: {str(e)}")
+            return []
 
-            # Scroll to the bottom of the page
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            scroll_attempts += 1
-            logging.info(f"Scroll attempt {scroll_attempts}, total links: {len(links)}")
-
-            # Wait for new content to load
-            time.sleep(random.uniform(2.0, 4.0))  # Increased delay for dynamic loading
-
-            # Check if new articles are loaded
-            try:
-                WebDriverWait(driver, 5).until(
-                    EC.presence_of_element_located((By.TAG_NAME, "article"))
-                )
-            except TimeoutException:
-                logging.warning("No new articles loaded after scrolling.")
-                break
+        finally:
+            driver.quit()
 
     except Exception as e:
-        logging.error(f"Error during Selenium scraping: {e}")
-
-    finally:
-        driver.quit()
-        logging.info("Selenium WebDriver closed.")
+        logging.error(f"Gagal menginisialisasi driver: {str(e)}")
+        return []
 
     return sorted(links)
 
@@ -214,19 +161,21 @@ def get_article_content_medium(link):
 
 def run(option):
     if option == 1:
-        all_links = []
-        for category in categories:
-            logging.info(f"Mulai crawl kategori: {category}")
-            links = get_article_links_medium(category)
-            all_links.extend(links)
-            logging.info(f"{len(links)} link ditemukan di kategori {category}")
-        save_links(all_links, source="medium")
-        logging.info(f"Total {len(all_links)} link disimpan dari semua kategori")
+        logging.info("Mulai proses crawling link artikel dari Medium...")
+        links = get_article_links_medium()  # Diasumsikan sudah tidak butuh kategori
+        if not links:
+            logging.warning("Tidak ada link ditemukan.")
+            return
+        save_links(links, source="medium")
+        logging.info(f"Total {len(links)} link disimpan dari Medium.")
 
     elif option == 2:
         all_links = load_links("medium")
-        article_data = []
+        if not all_links:
+            logging.warning("Tidak ada link yang dimuat dari file.")
+            return
 
+        article_data = []
         for idx, link in enumerate(all_links, 1):
             logging.info(f"[{idx}/{len(all_links)}] Scraping: {link}")
             title, content, tags = get_article_content_medium(link)
