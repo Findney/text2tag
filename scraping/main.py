@@ -2,7 +2,7 @@ import logging
 import importlib
 from scrapers import helper
 
-SOURCES = ["kompas", "tempo", "medium"]
+SOURCES = ["kompas", "tempo", "medium", "mojok"]
 
 
 def show_main_menu():
