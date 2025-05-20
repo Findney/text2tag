@@ -7,7 +7,7 @@ import logging
 import uuid
 import warnings
 from .helper import load_links, save_links, save_csv
-from config import USER_AGENTS, REFERERS, URL_ETD_USK
+from config import USER_AGENTS, REFERERS, ETD_USK_URL
 
 # Nonaktifkan peringatan SSL untuk testing
 warnings.filterwarnings(
