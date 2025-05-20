@@ -6,7 +6,7 @@ import logging
 from config import KOMPAS_URL, USER_AGENTS, REFERERS
 from .helper import save_links, load_links, save_csv
 
-MAX_LINKS = 5  # Maksimal link yang akan diambil perkategori
+MAX_LINKS = 300  # Maksimal link yang akan diambil perkategori
 
 # Mengatur logging
 logging.basicConfig(
@@ -17,28 +17,28 @@ logging.basicConfig(
 categories = [
     "nasional",
     "regional",
-    # "megapolitan",
-    # "tren",
-    # "food",
-    # "edukasi",
-    # "money",
-    # "umkm",
-    # "tekno",
-    # "lifestyle",
-    # "homey",
-    # "properti",
-    # "bola",
-    # "travel",
-    # "otomotif",
-    # "sains",
-    # "hype",
-    # "health",
-    # "skola",
-    # "stori",
-    # "konsultasihukum",
-    # "wiken",
-    # "ikn",
-    # "nusaraya",
+    "megapolitan",
+    "tren",
+    "food",
+    "edukasi",
+    "money",
+    "umkm",
+    "tekno",
+    "lifestyle",
+    "homey",
+    "properti",
+    "bola",
+    "travel",
+    "otomotif",
+    "sains",
+    "hype",
+    "health",
+    "skola",
+    "stori",
+    "konsultasihukum",
+    "wiken",
+    "ikn",
+    "nusaraya",
 ]
 
 
