@@ -7,8 +7,8 @@ HIPWEE_URL = "https://hipwee.com"
 IDNTIME_URL = "https://idntimes.com"  # hapus tag akhir "UPDATE ME"
 
 # URL for scraping keywords
-GARUDA_URL = "https://garuda.kemdikbud.go.id"
-UGM_URL = "https://jurnal.ugm.ac.id/index?searchInitial=A&sort=title"
+ETD_UGM_URL = "https://etd.repository.ugm.ac.id"
+ETD_USK_URL = "https://etd.usk.ac.id"
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
