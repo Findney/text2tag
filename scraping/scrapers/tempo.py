@@ -6,11 +6,11 @@ from bs4 import BeautifulSoup
 from config import USER_AGENTS, REFERERS, TEMPO_URL
 from .helper import save_links, load_links, save_csv
 
-MAX_LINKS = 30
+MAX_LINKS = 20000
 
 
 def get_article_links_tempo():
-    """Crawl sampai 5000 link artikel dari Tempo.co indeks (hanya FREE)."""
+    """Crawl link artikel dari Tempo.co indeks"""
     article_links = set()
     page = 1
     base_url = "https://www.tempo.co/indeks?page={}&category=newsAccess&access=FREE"

@@ -11,7 +11,7 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-MAX_LINKS_PER_CATEGORY = 2  # Maksimal link per kategori
+MAX_LINKS_PER_CATEGORY = 1000  # Maksimal link per kategori
 
 # Daftar kategori untuk setiap jenis URL
 CATEGORIES_1 = ["esai", "otomojok", "konter", "maljum"]

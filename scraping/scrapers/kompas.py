@@ -6,7 +6,7 @@ import logging
 from config import KOMPAS_URL, USER_AGENTS, REFERERS
 from .helper import save_links, load_links, save_csv
 
-MAX_LINKS = 300  # Maksimal link yang akan diambil perkategori
+MAX_LINKS = 1000  # Maksimal link yang akan diambil perkategori
 
 # Mengatur logging
 logging.basicConfig(
@@ -43,7 +43,7 @@ categories = [
 
 
 def get_article_links(category):
-    """Mengambil hingga max_links artikel dari halaman indeks kategori, dengan cek duplikat."""
+    """Mengambil hingga max_links artikel dari halaman indeks kategori."""
     article_links = set()
     page = 1
     base_url = f"https://indeks.kompas.com/?site={category}&page="
