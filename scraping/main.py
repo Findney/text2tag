@@ -1,9 +1,9 @@
 import logging
 import importlib
 from scrapers import helper
-from scrapers import transform
-import os
-from scrapers.helper import save_csv
+from scrapers.transform import transform_csv
+from pathlib import Path
+from scrapers.helper import save_csv_processed
 
 SOURCES = ["kompas", "tempo", "medium", "mojok", "etd_usk", "etd_ugm"]
 
@@ -57,29 +57,28 @@ def main():
         elif main_choice == "3":
             csv_name = input("Masukkan nama file CSV untuk ditransformasi: ").strip()
 
-            if not os.path.exists(f"../data/raw/{csv_name}.csv"):
-                print(f"[ERROR] File '{csv_name}.csv' tidak ditemukan.")
-                logging.error(f"File tidak ditemukan: {csv_name}.csv")
+            # Bangun path dengan benar
+            raw_data_dir = Path.cwd() / "../data" / "raw"  
+            csv_path = raw_data_dir / f"{csv_name}.csv"
+
+            if not csv_path.exists():
+                print(f"[ERROR] File '{csv_name}.csv' tidak ditemukan di {raw_data_dir}.")
+                logging.error(f"File tidak ditemukan: {csv_path}")
                 continue
 
             try:
-                df_transformed = transform(f"../data/raw/{csv_name}.csv")
+                df_transformed = transform_csv(csv_path)
                 if df_transformed is not None:
-                    print("\n[INFO] Preview hasil transformasi:")
                     logging.info(
                         f"Preview hasil transformasi: {df_transformed.head(5)}"
-                    )
-                    print(df_transformed.head(5))
-                    print(
-                        f"\nJumlah total baris setelah transformasi: {len(df_transformed)}"
                     )
                     logging.info(
                         f"Jumlah total baris setelah transformasi: {len(df_transformed)}"
                     )
+                    save_csv_processed(df_transformed, csv_name)
                     logging.info(
-                        f"Transformasi selesai. Data disimpan ke '../data/processed/{csv_name}.csv'"
+                        f"Transformasi selesai. Data disimpan ke {csv_path}"
                     )
-                    save_csv(df_transformed, f"../data/processed/{csv_name}.csv")
                 else:
                     print("[ERROR] Transformasi gagal. Cek log untuk detail.")
             except Exception as e:
