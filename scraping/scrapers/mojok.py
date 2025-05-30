@@ -3,6 +3,9 @@ import time
 import requests
 from bs4 import BeautifulSoup
 import logging
+import aiohttp
+import asyncio
+from aiohttp import ClientTimeout
 from config import MOJOK_URL, USER_AGENTS, REFERERS
 from .helper import save_links, load_links, save_csv
 
@@ -150,10 +153,10 @@ def get_article_links(
     return sorted(article_links)
 
 
-def get_article_content(link):
-    """Mengambil konten artikel dari link, termasuk judul, konten, tag, dan menangani multi-halaman."""
+async def get_article_content(link):
+    """Mengambil konten artikel dari link, termasuk judul, konten, tag, dan menangani multi-halaman secara asynchronous."""
 
-    def scrape_page(url):
+    async def scrape_page(session, url):
         try:
             user_agent = random.choice(USER_AGENTS)
             referer = random.choice(REFERERS)
@@ -162,81 +165,118 @@ def get_article_content(link):
                 "Referer": referer,
             }
 
-            response = requests.get(url, headers=headers, timeout=15)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, "html.parser")
+            timeout = ClientTimeout(total=15)
+            async with session.get(url, headers=headers, timeout=timeout) as response:
+                response.raise_for_status()
+                html = await response.text()
+                soup = BeautifulSoup(html, "html.parser")
 
-            # Mengambil judul
-            title_elem = soup.find("h1", class_="jeg_post_title")
-            title = title_elem.text.strip() if title_elem else None
+                # Mengambil judul
+                title_elem = soup.find("h1", class_="jeg_post_title")
+                title = title_elem.text.strip() if title_elem else None
 
-            # Mengambil konten
-            content_div = soup.find("div", class_="content-inner")
-            sentences = []
-            if content_div:
-                paragraphs = content_div.find_all("p", recursive=True)
-                for p in paragraphs:
-                    text = p.text.strip()
-                    if not any(
-                        exclude in text
-                        for exclude in [
-                            "Penulis:",
-                            "Editor:",
-                            "BACA JUGA",
-                            "Baca Halaman Selanjutnya",
-                        ]
-                    ):
-                        sentences.append(text)
+                # Mengambil konten
+                content_div = soup.find("div", class_="content-inner")
+                sentences = []
+                if content_div:
+                    paragraphs = content_div.find_all("p", recursive=True)
+                    for p in paragraphs:
+                        text = p.text.strip()
+                        if not any(
+                            exclude in text
+                            for exclude in [
+                                "Penulis:",
+                                "Editor:",
+                                "BACA JUGA",
+                                "Baca Halaman Selanjutnya",
+                            ]
+                        ):
+                            sentences.append(text)
 
-            content = " ".join(sentences)
-            content = " ".join(content.split())  # Hapus whitespace berlebih
+                content = " ".join(sentences)
+                content = " ".join(content.split())  # Hapus whitespace berlebih
 
-            # Mengambil tag
-            tags_div = soup.find("div", class_="jeg_post_tags")
-            tags = []
-            if tags_div:
-                tag_links = tags_div.find_all("a", rel="tag")
-                tags = [tag.text.strip() for tag in tag_links]
+                # Mengambil tag
+                tags_div = soup.find("div", class_="jeg_post_tags")
+                tags = []
+                if tags_div:
+                    tag_links = tags_div.find_all("a", rel="tag")
+                    tags = [tag.text.strip() for tag in tag_links]
 
-            # Cek halaman selanjutnya
-            nav_link = (
-                content_div.find("div", class_="nav_link") if content_div else None
-            )
-            next_page = None
-            if nav_link:
-                next_link = nav_link.find("a", class_="page_nav next")
-                if next_link and next_link["href"]:
-                    next_page = next_link["href"].strip().rstrip("/")
-                    if not next_page.startswith("http"):
-                        next_page = MOJOK_URL + next_page
+                # Cek halaman selanjutnya
+                nav_link = (
+                    content_div.find("div", class_="nav_link") if content_div else None
+                )
+                next_page = None
+                if nav_link:
+                    next_link = nav_link.find("a", class_="page_nav next")
+                    if next_link and next_link["href"]:
+                        next_page = next_link["href"].strip().rstrip("/")
+                        if not next_page.startswith("http"):
+                            next_page = MOJOK_URL + next_page
 
-            return title, content, tags, next_page
+                return title, content, tags, next_page
 
         except Exception as e:
             logging.error(f"Error scraping page {url}: {e}")
             return None, None, None, None
 
-    # Scraping halaman pertama
-    title, content, tags, next_page = scrape_page(link)
-    if not title or not content:
-        return None, None, None
+    # Setup aiohttp session with connection pooling
+    connector = aiohttp.TCPConnector(limit=5)  # Limit concurrent connections
+    timeout = ClientTimeout(total=30)
 
-    # Scraping halaman berikutnya jika ada
-    all_content = [content]
-    visited_pages = {link}
+    async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+        # Scraping halaman pertama
+        title, content, tags, next_page = await scrape_page(session, link)
+        if not title or not content:
+            return None, None, None
 
-    while next_page and next_page not in visited_pages:
-        _, page_content, _, next_page = scrape_page(next_page)
-        if page_content:
-            all_content.append(page_content)
-        visited_pages.add(next_page)
-        time.sleep(random.uniform(1, 3))
+        # Scraping halaman berikutnya jika ada
+        all_content = [content]
+        visited_pages = {link}
 
-    # Gabungkan semua konten
-    final_content = " ".join(all_content)
-    final_content = " ".join(final_content.split())
+        while next_page and next_page not in visited_pages:
+            # Add delay between requests
+            await asyncio.sleep(random.uniform(1, 3))
 
-    return title, final_content, tags
+            _, page_content, _, next_page = await scrape_page(session, next_page)
+            if page_content:
+                all_content.append(page_content)
+            visited_pages.add(next_page)
+
+        # Gabungkan semua konten
+        final_content = " ".join(all_content)
+        final_content = " ".join(final_content.split())
+
+        return title, final_content, tags
+
+
+async def scrape_articles(links):
+    """Scrape multiple articles concurrently with rate limiting."""
+    article_data = []
+    semaphore = asyncio.Semaphore(5)  # Limit concurrent scraping to 5 articles
+
+    async def scrape_with_semaphore(link):
+        async with semaphore:
+            logging.info(f"Scraping article: {link}")
+            title, content, tags = await get_article_content(link)
+            if title and content:
+                tag_str = ", ".join(tags) if tags else "-"
+                return (title, content, tag_str)
+            else:
+                logging.warning(f"Failed to scrape article: {link}")
+                return None
+
+    # Create tasks for all links
+    tasks = [scrape_with_semaphore(link) for link in links]
+
+    # Wait for all tasks to complete
+    results = await asyncio.gather(*tasks)
+
+    # Filter out None results and add to article_data
+    article_data.extend([r for r in results if r is not None])
+
+    return article_data
 
 
 def run(option):
@@ -278,19 +318,9 @@ def run(option):
 
     elif option == 2:
         all_links = load_links("mojok")
-        article_data = []
 
-        for idx, link in enumerate(all_links, 1):
-            logging.info(f"[{idx}/{len(all_links)}] Scraping article: {link}")
-            title, content, tags = get_article_content(link)
-
-            if title and content:
-                tag_str = ", ".join(tags) if tags else "-"
-                article_data.append((title, content, tag_str))
-            else:
-                logging.warning(f"Failed to scrape article: {link}")
-
-            time.sleep(random.uniform(1, 3))
+        # Run the async scraping
+        article_data = asyncio.run(scrape_articles(all_links))
 
         save_csv(article_data, source="mojok")
         logging.info(

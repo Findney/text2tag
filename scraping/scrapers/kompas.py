@@ -3,6 +3,10 @@ import time
 import requests
 from bs4 import BeautifulSoup
 import logging
+import aiohttp
+import asyncio
+from aiohttp import ClientTimeout
+from aiohttp_retry import RetryClient, ExponentialRetry
 from config import KOMPAS_URL, USER_AGENTS, REFERERS
 from .helper import save_links, load_links, save_csv
 
@@ -111,8 +115,8 @@ def get_article_links(category):
     return sorted(article_links)
 
 
-def get_article_content(link):
-    """Mengambil konten artikel dari link, termasuk judul, konten, dan tag."""
+async def get_article_content(link, session=None):
+    """Mengambil konten artikel dari link, termasuk judul, konten, dan tag secara asynchronous dengan retry."""
     try:
         # Memilih User-Agent dan Referer secara acak
         user_agent = random.choice(USER_AGENTS)
@@ -122,41 +126,98 @@ def get_article_content(link):
             "Referer": referer,
         }
 
-        response = requests.get(link, headers=headers, timeout=15)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
+        # Setup retry strategy
+        retry_options = ExponentialRetry(
+            attempts=3,  # Jumlah percobaan maksimal
+            start_timeout=1,  # Waktu tunggu awal
+            max_timeout=10,  # Waktu tunggu maksimal
+            factor=2,  # Faktor pengali untuk exponential backoff
+            statuses={500, 502, 503, 504},  # Status code yang akan di-retry
+        )
 
-        # Mengambil judul artikel
-        title = soup.find("h1", class_="read__title").text.strip()
-
-        # Mengambil konten artikel
-        content_div = soup.find("div", class_="read__content")
-        clearfix_blocks = content_div.find_all("div", class_="clearfix", recursive=True)
-        sentences = []
-        for block in clearfix_blocks:
-            paragraphs = block.find_all("p")
-            for p in paragraphs:
-                if "Baca juga:" not in p.text:
-                    sentences.append(p.text.strip())
-        # Gabungkan semua kalimat menjadi satu baris
-        content = " ".join(sentences)
-        content = " ".join(content.split())  # Hapus whitespace berlebih
-
-        # Mengambil tag artikel
-        tags_wrap = soup.find("ul", class_="tag__article__wrap")
-        tags = []
-        if tags_wrap:  # Pastikan elemennya ada
-            tag_items = tags_wrap.find_all("li", class_="tag__article__item")
-            for item in tag_items:
-                tag_link = item.find("a", class_="tag__article__link")
-                if tag_link:
-                    tags.append(tag_link.text.strip())
-
-        return title, content, tags
+        # Use provided session or create new one
+        if session is None:
+            connector = aiohttp.TCPConnector(limit=5)  # Limit concurrent connections
+            timeout = ClientTimeout(total=30)
+            async with aiohttp.ClientSession(
+                connector=connector, timeout=timeout
+            ) as session:
+                return await _fetch_content(session, link, headers, retry_options)
+        else:
+            return await _fetch_content(session, link, headers, retry_options)
 
     except Exception as e:
         logging.error(f"Error saat mengambil konten artikel dari {link}: {e}")
         return None, None, None
+
+
+async def _fetch_content(session, link, headers, retry_options):
+    """Helper function untuk mengambil konten dengan retry."""
+    async with RetryClient(
+        client_session=session, retry_options=retry_options
+    ) as retry_client:
+        async with retry_client.get(link, headers=headers) as response:
+            response.raise_for_status()
+            html = await response.text()
+            soup = BeautifulSoup(html, "html.parser")
+
+            # Mengambil judul artikel
+            title = soup.find("h1", class_="read__title").text.strip()
+
+            # Mengambil konten artikel
+            content_div = soup.find("div", class_="read__content")
+            clearfix_blocks = content_div.find_all(
+                "div", class_="clearfix", recursive=True
+            )
+            sentences = []
+            for block in clearfix_blocks:
+                paragraphs = block.find_all("p")
+                for p in paragraphs:
+                    if "Baca juga:" not in p.text:
+                        sentences.append(p.text.strip())
+            # Gabungkan semua kalimat menjadi satu baris
+            content = " ".join(sentences)
+            content = " ".join(content.split())  # Hapus whitespace berlebih
+
+            # Mengambil tag artikel
+            tags_wrap = soup.find("ul", class_="tag__article__wrap")
+            tags = []
+            if tags_wrap:  # Pastikan elemennya ada
+                tag_items = tags_wrap.find_all("li", class_="tag__article__item")
+                for item in tag_items:
+                    tag_link = item.find("a", class_="tag__article__link")
+                    if tag_link:
+                        tags.append(tag_link.text.strip())
+
+            return title, content, tags
+
+
+async def scrape_articles(links):
+    """Scrape multiple articles concurrently with rate limiting."""
+    article_data = []
+    semaphore = asyncio.Semaphore(10)  # Limit concurrent scraping to 5 articles
+
+    async def scrape_with_semaphore(link):
+        async with semaphore:
+            logging.info(f"Mengambil artikel: {link}")
+            title, content, tags = await get_article_content(link)
+            if title and content and tags:
+                tag_str = ", ".join(tags) if tags else "-"
+                return (title, content, tag_str)
+            else:
+                logging.warning(f"Artikel gagal diambil: {link}")
+                return None
+
+    # Create tasks for all links
+    tasks = [scrape_with_semaphore(link) for link in links]
+
+    # Wait for all tasks to complete
+    results = await asyncio.gather(*tasks)
+
+    # Filter out None results and add to article_data
+    article_data.extend([r for r in results if r is not None])
+
+    return article_data
 
 
 def run(option):
@@ -178,17 +239,9 @@ def run(option):
 
     elif option == 2:
         all_links = load_links("kompas")
-        article_data = []
 
-        for idx, link in enumerate(all_links, 1):
-            logging.info(f"[{idx}/{len(all_links)}] Mengambil artikel: {link}")
-            title, content, tags = get_article_content(link)
-
-            if title and content and tags:
-                tag_str = ", ".join(tags) if tags else "-"
-                article_data.append((title, content, tag_str))
-            else:
-                logging.warning(f"Artikel gagal diambil: {link}")
+        # Run the async scraping
+        article_data = asyncio.run(scrape_articles(all_links))
 
         save_csv(article_data, source="kompas")
         logging.info(
