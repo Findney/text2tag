@@ -1,7 +1,7 @@
 import pandas as pd
 
 
-def transform(csv_path, dropna=True, encoding="utf-8"):
+def transform_csv(csv_path, dropna=True, encoding="utf-8"):
     """
     Membaca file CSV dan melakukan transformasi awal pada data.
 
