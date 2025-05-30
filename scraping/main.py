@@ -12,8 +12,8 @@ def show_main_menu():
     print("\n=== MENU SCRAPER ===")
     print("1. Crawl URL")
     print("2. Scrape Data")
-    print("3. Keluar")
-    print("4. Transform Data")
+    print("3. Transform Data")
+    print("4. Keluar")
     return input("Pilih opsi (1/2/3/4): ").strip()
 
 
@@ -55,11 +55,6 @@ def main():
                 print("Pilihan sumber tidak valid.")
 
         elif main_choice == "3":
-            logging.info("Keluar dari program.")
-            print("Terima kasih. Program selesai.")
-            break
-
-        elif main_choice == "4":
             csv_name = input("Masukkan nama file CSV untuk ditransformasi: ").strip()
 
             if not os.path.exists(f"../data/raw/{csv_name}.csv"):
@@ -90,6 +85,11 @@ def main():
             except Exception as e:
                 logging.error(f"Error saat transformasi data: {e}")
                 print(f"[ERROR] Terjadi kesalahan saat transformasi: {e}")
+
+        elif main_choice == "4":
+            logging.info("Keluar dari program.")
+            print("Terima kasih. Program selesai.")
+            break
 
         else:
             print("Pilihan tidak valid. Silakan pilih 1, 2, atau 3.")
