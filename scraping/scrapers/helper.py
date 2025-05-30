@@ -1,6 +1,7 @@
 import os
 import logging
 import csv
+from pathlib import Path
 
 
 def setup_logging(source):
@@ -75,3 +76,9 @@ def save_csv(data, source):
             writer.writerow([title, content, tag])
 
     logging.info(f"Data dari sumber '{source}' disimpan ke {output_file}")
+
+
+def save_csv_processed(df, source):
+    output_path = f"../data/processed/{source}.csv"
+    df.to_csv(output_path, index=False)
+    print(f"[INFO] Data berhasil disimpan ke: {output_path}")
