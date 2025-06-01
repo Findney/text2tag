@@ -32,7 +32,6 @@ def keyword_ui():
 
 def tag_ui():
     st.header("🏷️ Generate Tags from News Article")
-    # Inputan berupa judul dan isi konten
     judul = st.text_input("Judul Berita")
     konten = st.text_area("Konten Berita (max. 200 words)")
 
@@ -47,27 +46,31 @@ def tag_ui():
             st.warning("Please input news content.")
             return
 
-        # Batasan input 200 kata untuk konten
         word_count = len(konten.split())
         if word_count > 200:
             st.error(f"Konten Berita should not exceed 200 words. You have {word_count} words.")
             return
 
         with st.spinner("Generating..."):
-            # Gabungkan input judul dan konten menjadi satu text
-            combined_text = judul + " " + konten
-            # Kirim ke backend
-            response = requests.post(f"{API_URL}/generate_tags", json={"text": combined_text})
+            # Gabungkan judul + konten → kirim ke backend sebagai satu field "text"
+            combined_text = f"judul: {judul} konten: {konten}"
+            response = requests.post(
+                f"{API_URL}/generate_tags",
+                json={"text": combined_text}
+            )
+
             if response.status_code == 200:
-                result = response.json().get("tags") # Use .get() for safety
-                if result is not None:
+                result = response.json().get("tags")
+                if result:
                     st.subheader("🏷️ Tags:")
-                    # Display tags with some styling
-                    tags_html = "".join([f"<span style='display:inline-block;background-color:#d4edda;color:#155724;padding:0.3em 0.6em;margin:0.2em;border-radius:10px;font-size:0.9em;'>{tag}</span>" for tag in result])
+                    tags_html = "".join([
+                        f"<span style='display:inline-block;background-color:#d4edda;color:#155724;padding:0.3em 0.6em;margin:0.2em;border-radius:10px;font-size:0.9em;'>{tag}</span>"
+                        for tag in result
+                    ])
                     st.markdown(tags_html, unsafe_allow_html=True)
                     st.download_button("📁 Save as .json", json.dumps(result, indent=2), file_name="tags.json")
                 else:
-                    st.error("Received no tags from the server.")
+                    st.error("No tags were generated.")
             else:
                 st.error(f"Failed to generate tags. Status code: {response.status_code} - {response.text}")
 
