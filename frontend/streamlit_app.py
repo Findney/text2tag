@@ -5,10 +5,8 @@ from streamlit_lottie import st_lottie
 
 # === CONFIG ===
 st.set_page_config(page_title="Smart Text Tagger", layout="wide", initial_sidebar_state="collapsed")
-API_URL = "http://localhost:8000" # Pastikan backend FastAPI Anda berjalan di alamat ini
+API_URL = "http://localhost:8000"
 
-# === GLOBAL STYLES ===
-# Perhatikan penyesuaian pada selector CSS untuk menargetkan tombol Streamlit
 # === GLOBAL STYLES ===
 st.markdown("""
 <style>
