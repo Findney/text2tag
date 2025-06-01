@@ -1,4 +1,3 @@
-# BACKEND (FastAPI) - backend/main.py
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,6 +6,7 @@ import torch
 
 app = FastAPI()
 
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -15,37 +15,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load keyword extraction model
+# Load models
 keyword_model_path = "./models/best_keyword_model"
 keyword_tokenizer = AutoTokenizer.from_pretrained(keyword_model_path, local_files_only=True)
 keyword_model = AutoModelForTokenClassification.from_pretrained(keyword_model_path, local_files_only=True)
 
-# Load tag generation model
 tag_model_path = "./models/best_tag_model"
 tag_tokenizer = AutoTokenizer.from_pretrained(tag_model_path, local_files_only=True)
 tag_model = AutoModelForSeq2SeqLM.from_pretrained(tag_model_path, local_files_only=True)
 
-# Set device
+# Device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 keyword_model.to(device)
 tag_model.to(device)
 
-# Parameters
+# Constants
 MAX_LENGTH = 256
 MAX_INPUT_LENGTH = 256
 MAX_TARGET_LENGTH = 100
 PREFIX = "generate tags: "
-
-# id2label mapping
 id2label = {0: 'O', 1: 'B-KEY', 2: 'I-KEY'}
 
+# Input Models
 class TextInput(BaseModel):
     text: str
 
-class TagInput(BaseModel):
-    title: str
-    content: str
-
+# === Endpoint: Generate Keywords ===
 @app.post("/generate_keywords")
 def generate_keywords(input: TextInput):
     inputs = keyword_tokenizer(input.text, return_tensors="pt", max_length=MAX_LENGTH, padding="max_length", truncation=True)
@@ -80,9 +75,10 @@ def generate_keywords(input: TextInput):
     final_keywords = list(dict.fromkeys(extracted_keywords))[:10]
     return {"keywords": final_keywords}
 
+# === Endpoint: Generate Tags ===
 @app.post("/generate_tags")
-def generate_tags(input: TagInput):
-    combined_text = PREFIX + "judul: " + input.title + " konten: " + input.content
+def generate_tags(input: TextInput):
+    combined_text = PREFIX + input.text
     inputs = tag_tokenizer(
         combined_text,
         return_tensors="pt",
