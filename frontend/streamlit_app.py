@@ -4,7 +4,7 @@ import json
 from streamlit_lottie import st_lottie
 
 # === CONFIG ===
-st.set_page_config(page_title="Smart Text Tagger", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="SENTRA", layout="wide", initial_sidebar_state="collapsed")
 API_URL = "http://localhost:8000"
 
 # === GLOBAL STYLES ===
@@ -47,7 +47,7 @@ div[data-testid="stHorizontalBlock"] div[data-testid^="stVerticalBlock"] button 
 
 div[data-testid="stHorizontalBlock"] div[data-testid^="stVerticalBlock"] button[kind="secondary"] {
     background-color: transparent !important;
-    color: #444 !important;
+    color: #fff !important;
 }
 
 div[data-testid="stHorizontalBlock"] div[data-testid^="stVerticalBlock"] button[kind="secondary"]:hover {
@@ -63,7 +63,7 @@ div[data-testid="stHorizontalBlock"] div[data-testid^="stVerticalBlock"] button[
 div[data-testid="stHorizontalBlock"] div[data-testid^="stVerticalBlock"] button[kind="primary"] {
     background-color: #c7d2fe !important;
     font-weight: bold !important;
-    color: #111 !important;
+    color: #000 !important;
     box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1) !important;
 }
 
@@ -142,16 +142,16 @@ def keyword_ui():
 def tag_ui():
     st.subheader("🏷️ Membuat Tag dari Artikel Berita")
     judul = st.text_input("📰 Judul Berita", placeholder="Contoh: Pemerintah Luncurkan Program Energi Baru")
-    konten = st.text_area("📝 Konten Berita (maks. 200 kata)", height=250)
+    konten = st.text_area("📝 Konten Berita", height=250)
 
     if st.button("🚀 Generate Tags"):
         if not judul.strip() or not konten.strip():
             st.warning("Silakan isi keduanya.")
             return
 
-        if len(konten.split()) > 200:
-            st.error(f"Konten melebihi 200 kata. Input Anda memiliki {len(konten.split())} kata.")
-            return
+        # if len(konten.split()) > 200:
+        #     st.error(f"Konten melebihi 200 kata. Input Anda memiliki {len(konten.split())} kata.")
+        #     return
 
         with st.spinner("Membuat..."):
             combined_text = f"judul: {judul} konten: {konten}"
@@ -180,7 +180,7 @@ def tag_ui():
 
 # === UI - Landing Page ===
 def landing_page():
-    st.markdown("<h1 style='text-align:center;'>Smart Text Tagger</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align:center;'>SENTRA</h1>", unsafe_allow_html=True)
     st.markdown("<h4 style='text-align:center;color:gray;'>Unlock keywords & tags with AI precision</h4>", unsafe_allow_html=True)
 
     lottie_url = "https://assets6.lottiefiles.com/packages/lf20_zrqthn6o.json"
@@ -206,7 +206,7 @@ def render_footer():
     st.markdown("""
     <hr style="margin-top:3rem;margin-bottom:1rem;">
     <div style="text-align:center;color:gray;font-size:0.9rem;">
-        © 2025 Smart Text Tagger — Built with ❤️ by Kelompok 4
+        © 2025 SENTRA (Smart Extraction and Tagging for Nusantara) — Built by Agil Mughni & Akhsania Maisa Rahmah
     </div>
     """, unsafe_allow_html=True)
 
