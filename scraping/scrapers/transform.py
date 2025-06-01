@@ -45,7 +45,13 @@ def transform_csv(csv_path, dropna=True, encoding="utf-8"):
                 .str.removeprefix("Keywords: ")
             )
         if "tag" in df.columns:
-            df["tag"] = df["tag"].str.removeprefix("Tag: ").str.removeprefix("Tags: ")
+            df["tag"] = (
+                df["tag"]
+                .str.removeprefix("Tag: ")
+                .str.removeprefix("Tags: ")
+                .str.removeprefix("Kata Kunci : ")
+                .str.removeprefix("Keywords: ")
+            )
 
         print(
             f"[INFO] Data berhasil diproses. Total baris setelah transformasi: {len(df)}"
